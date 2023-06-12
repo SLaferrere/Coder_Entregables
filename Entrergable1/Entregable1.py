@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 
-# Pega a la API y genera un dataframe
+# Pega a la API y genera un dataframe con toda la infomación que necesitamos para la tabla que queremos crear
 
 def get_data():
     request = requests.get(
@@ -28,6 +28,14 @@ def get_data():
 
 # Crea la tabla (si no existe) en Redshift con los datos del dataframe
 def main():
+
+    """Se requiere un archivo .env para poder cargar las credecinales de RedShift
+    este tiene el sieguiente formato 
+    HOST = host de redshift.amazonaws.com 
+    PORT = numero de puerto
+    DATABASE = database
+    USER = usuario
+    PASSWORD = contraseña"""
     load_dotenv()
 
     conn = redshift_connector.connect(
