@@ -12,7 +12,7 @@ load_dotenv()
 def create_spark_session():
     os.environ['PYSPARK_PYTHON'] = sys.executable
     os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
-    """Se requiere el path al driver que se encuentra en la carpeta DriverJDBC"""
+    """Se requiere un archivo .env con el path al driver que se encuentra en la carpeta DriverJDBC"""
     spark = (
         SparkSession.builder
         .master("local")
