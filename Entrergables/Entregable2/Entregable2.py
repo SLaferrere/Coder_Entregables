@@ -53,7 +53,7 @@ def main():
     conn.autocommit = True
 
 # Crea la tabla final con los data types que necesitamos
-    table = "CREATE TABLE if not exists laferreresantiago_coderhouse.Updates \
+    table = "CREATE TABLE if not exists laferreresantiago_coderhouse.UsersInformation \
                     (preferable_prefix varchar(50) NOT NULL, \
                     full_name varchar(50) NOT NULL, \
                     country varchar(50) NOT NULL, \
@@ -66,7 +66,7 @@ def main():
                     send_congratulations varchar(1) NOT NULL) \
                     compound sortkey(email)"
 # Inserta en la tabla los datos conseguidos en el DataFrame mas una columna que nos avisa de los cumpleaños que hay en el mes en curso
-    updates = "insert into laferreresantiago_coderhouse.updates \
+    updates = "insert into laferreresantiago_coderhouse.UsersInformation \
                     with birthmonth as ( \
 	                    select \
 		                preferable_prefix, \
@@ -81,18 +81,16 @@ def main():
 	                    case when date_part(month, cast(date_of_birth as date)) = date_part(month, current_date) then 'Y'\
 	                    else 'N' \
 	                    end as send_congratulations \
-	                from laferreresantiago_coderhouse.usersinformation u \
+	                from laferreresantiago_coderhouse.DataFrame u \
                 ) \
                 select * from birthmonth"
 # Elimina la tambla temporal que contiene el DataFrame
-    dropTable = "drop table laferreresantiago_coderhouse.usersinformation"
-# Cambia el nombre de la tabla final
-    changeName = "alter table laferreresantiago_coderhouse.updates rename to usersinformation"
+    dropTable = "drop table laferreresantiago_coderhouse.DataFrame"
     with conn.cursor() as cur:
         df.select("preferable_prefix", "full_name", "country", "province", "email", "age", "date_of_birth", "cellphone", "nationality").write \
             .format("jdbc") \
             .option("url", f"jdbc:redshift://{os.getenv('HOST')}:{int(os.getenv('PORT'))}/{os.getenv('DATABASE')}") \
-            .option("dbtable", "laferreresantiago_coderhouse.UsersInformation") \
+            .option("dbtable", "laferreresantiago_coderhouse.DataFrame") \
             .option("user", os.getenv('USER')) \
             .option("password", os.getenv('PASSWORD')) \
             .option("driver", "com.amazon.redshift.jdbc42.Driver") \
@@ -101,11 +99,9 @@ def main():
         cur.execute(table)
         cur.execute(updates)
         cur.execute(dropTable)
-        cur.execute(changeName)
+
         
         
-
-
 
 if __name__ == "__main__":
     main()
