@@ -43,6 +43,13 @@ def get_data():
 
 # Crea una conexion con Redshift
 def connector():
+    """Se requiere un archivo .env para poder cargar las credecinales de RedShift
+    este tiene el sieguiente formato 
+    HOST = host de redshift.amazonaws.com 
+    PORT = numero de puerto
+    DATABASE = database
+    USER = usuario
+    PASSWORD = contraseña"""
     conn = psycopg2.connect(
         host=os.getenv("HOST"),
         port=int(os.getenv("PORT")),
