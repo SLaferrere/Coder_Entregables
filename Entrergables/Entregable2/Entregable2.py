@@ -1,18 +1,19 @@
-import os
-import sys
 import requests
+import os
+from dotenv import load_dotenv
+import sys
 import psycopg2
 from pyspark.sql import SparkSession
-from dotenv import load_dotenv
-
 
 load_dotenv()
 
-# Crea session en Spark
+# Crea una session en Spark
 def create_spark_session():
     os.environ['PYSPARK_PYTHON'] = sys.executable
     os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
-    """Se requiere un archivo .env con el path al driver que se encuentra en la carpeta DriverJDBC"""
+    """Se requiere un archivo .env con el path al driver que se encuentra en la carpeta DriverJDBC
+    con el siguiente formato
+    DRIVER_PATH= path"""
     spark = (
         SparkSession.builder
         .master("local")
@@ -22,27 +23,28 @@ def create_spark_session():
     )
     return spark
 
-# Pega a la API y devuelve un DataFrame donde se eliminan los posibles duplicados y con la data que nos interesa
+# Pega a la API y genera un DataFrame con los datos que nos interesa, ademas elimina posibles duplicados
 def get_data():
     request = requests.get(
         "https://randomuser.me/api/?results=100").json()
-    rows = []
-    for people in request.get("results", []):
-        rows.append({
-            "preferable_prefix": people["name"]["title"],
-            "full_name": people["name"]["first"] + " " + people["name"]["last"],
-            "country": people["location"]["country"],
-            "province": people["location"]["state"],
-            "email": people["email"],
-            "age": people["dob"]["age"],
-            "date_of_birth": people["dob"]["date"][:10],
-            "cellphone": people["cell"],
-            "nationality": people["nat"]
-        })
-        df = create_spark_session().createDataFrame(rows).dropDuplicates()
+    col_names = ["cellphone", "prefix", "first_name", "last_name", "email", "age", "date_of_birth", "nationality"]
+    temp = (
+        create_spark_session().createDataFrame(request["results"])
+        .select("cell",
+                "name.title", 
+                "name.first",
+                "name.last",
+                "email",
+                "dob.age",
+                "dob.date",
+                "nat")
+        .dropDuplicates()
+    )
+    df = temp.toDF(*col_names)
     return df
 
-# Crea una conexion con Redshift
+
+# Crea un conector entre psycopg2 y RedShift
 def connector():
     """Se requiere un archivo .env para poder cargar las credecinales de RedShift
     este tiene el sieguiente formato 
@@ -61,36 +63,34 @@ def connector():
     conn.autocommit = True
     return conn
 
-# Crea la tabla SIN valores y otra temporal con los datos del DataFrame y luego inserta dichos valores a la tabla final
+# Inserta el DataFrame en una tabla en RedShift y luego hace una pequeña transformacion en la tabla 
 def main():
     df = get_data()
     conn = connector()
 
     with conn.cursor() as cur:
-        (
-            df
-            .select("preferable_prefix", "full_name", "country", "province", "email", "age", "date_of_birth", "cellphone", "nationality").write
-            .format("jdbc")
-            .option("url", f"jdbc:redshift://{os.getenv('HOST')}:{int(os.getenv('PORT'))}/{os.getenv('DATABASE')}")
-            .option("dbtable", "laferreresantiago_coderhouse.Temp_UsersInformation")
-            .option("user", os.getenv('USER'))
-            .option("password", os.getenv('PASSWORD'))
-            .option("driver", "com.amazon.redshift.jdbc42.Driver")
-            .mode("overwrite")
-            .save()
-        )
-        # Crea la tabla final con los data types que necesitamos
+        # Crea la tabla UsersInformation
         with open(r"create.sql", 'r') as content_file:
             cur.execute(content_file.read())
-
-        # Inserta en la tabla los datos conseguidos en el DataFrame mas una columna que nos avisa de los cumpleaños que hay en el mes en curso
-        with open(r"insert.sql", 'r') as content_file:
+        (
+        df
+        .write
+        .format("jdbc")
+        .option("url", f"jdbc:redshift://{os.getenv('HOST')}:{int(os.getenv('PORT'))}/{os.getenv('DATABASE')}")
+        .option("dbtable", "laferreresantiago_coderhouse.UsersInformation")
+        .option("user", os.getenv('USER'))
+        .option("password", os.getenv('PASSWORD'))
+        .option("driver", "com.amazon.redshift.jdbc42.Driver")
+        .mode("append")
+        .save()
+        )
+        # Transforma la tabla UsersInformation
+        with open(r"update.sql", 'r') as content_file:
             cur.execute(content_file.read())
-        
-        # Elimina la tambla Temp_UserInformation
-        dropTable = "drop table laferreresantiago_coderhouse.Temp_UsersInformation"
-        cur.execute(dropTable)
 
+        # Transforma la tabla UsersInformation
+        with open(r"alter.sql", 'r') as content_file:
+            cur.execute(content_file.read())
 
 if __name__ == "__main__":
     main()
