@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import sys
 import psycopg2
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import concat_ws
 
 load_dotenv()
 
@@ -27,13 +28,12 @@ def create_spark_session():
 def get_data():
     request = requests.get(
         "https://randomuser.me/api/?results=100").json()
-    col_names = ["cellphone", "prefix", "first_name", "last_name", "email", "age", "date_of_birth", "nationality"]
+    col_names = ["cellphone", "prefix", "full_name", "email", "age", "date_of_birth", "nationality"]
     temp = (
         create_spark_session().createDataFrame(request["results"])
         .select("cell",
                 "name.title", 
-                "name.first",
-                "name.last",
+                concat_ws(" ", "name.first", "name.last"),
                 "email",
                 "dob.age",
                 "dob.date",
@@ -88,9 +88,6 @@ def main():
         with open(r"update.sql", 'r') as content_file:
             cur.execute(content_file.read())
 
-        # Transforma la tabla UsersInformation
-        with open(r"alter.sql", 'r') as content_file:
-            cur.execute(content_file.read())
 
 if __name__ == "__main__":
     main()
